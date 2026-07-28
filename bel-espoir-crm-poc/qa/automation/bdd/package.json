@@ -1,0 +1,13 @@
+{
+  "name": "bel-espoir-crm-bdd",
+  "version": "1.0.0",
+  "description": "Suite BDD (Gherkin/Cucumber.js) — mock CRM Bel Espoir Export. Nécessite le serveur app/ démarré sur http://localhost:3000.",
+  "private": true,
+  "scripts": {
+    "test": "cucumber-js"
+  },
+  "type": "commonjs",
+  "devDependencies": {
+    "@cucumber/cucumber": "^12.9.0"
+  }
+}

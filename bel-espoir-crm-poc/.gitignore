@@ -1,0 +1,7 @@
+node_modules/
+app/data/db.json
+*.log
+.DS_Store
+qa/automation/playwright/test-results/
+qa/automation/playwright/report/
+qa/automation/playwright/playwright-report/

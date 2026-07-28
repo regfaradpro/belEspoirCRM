@@ -1,0 +1,201 @@
+{
+  "info": {
+    "name": "Mock CRM Bel Espoir Export (structure D365)",
+    "description": "Collection de test pour le mock CRM : Compte, Prospect (BPF), Opportunité, Devis->Commande, Dossier/SLA",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "leadId", "value": "" },
+    { "key": "accountId", "value": "" },
+    { "key": "opportunityId", "value": "" },
+    { "key": "quoteId", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "caseId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Compte (Account)",
+      "item": [
+        {
+          "name": "TC-ACC-01 Succès - Créer un Compte",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/accounts",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Entrepôts Meunier SPRL\",\n  \"phone\": \"+3265998877\"\n}" }
+          }
+        },
+        {
+          "name": "TC-ACC-02 Échec - Nom du compte manquant",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/accounts",
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        },
+        { "name": "GET Accounts", "request": { "method": "GET", "url": "{{baseUrl}}/accounts" } }
+      ]
+    },
+    {
+      "name": "Prospect (Lead)",
+      "item": [
+        {
+          "name": "TC-US1-01 Succès - Créer un Prospect valide",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json();","pm.collectionVariables.set('leadId', d.lead.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/leads",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"Demande de transport de fret régulier\",\n  \"firstName\": \"Marc\",\n  \"lastName\": \"Durand\",\n  \"email\": \"contact@transports-durand.be\",\n  \"businessPhone\": \"+3265123456\",\n  \"company\": \"Transports Durand SPRL\",\n  \"city\": \"Mons\"\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-US1-02 Échec - Champs obligatoires manquants",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/leads",
+            "body": { "mode": "raw", "raw": "{\n  \"lastName\": \"Julie\"\n}" }
+          }
+        },
+        {
+          "name": "TC-US1-03 Échec - Doublon (même e-mail)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/leads",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"Doublon test\",\n  \"lastName\": \"Durand\",\n  \"company\": \"Transports Durand SPRL\",\n  \"email\": \"contact@transports-durand.be\"\n}"
+            }
+          }
+        },
+        { "name": "GET Leads", "request": { "method": "GET", "url": "{{baseUrl}}/leads" } }
+      ]
+    },
+    {
+      "name": "Qualification (BPF Qualifier -> Développer)",
+      "item": [
+        {
+          "name": "TC-LEAD-QUAL-01 Succès - Qualifier le prospect",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const d=pm.response.json();",
+            "pm.collectionVariables.set('opportunityId', d.opportunity.id);",
+            "pm.collectionVariables.set('accountId', d.account.id);"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/leads/{{leadId}}/qualify" }
+        },
+        {
+          "name": "TC-LEAD-QUAL-02 Échec - Double qualification",
+          "request": { "method": "POST", "url": "{{baseUrl}}/leads/{{leadId}}/qualify" }
+        }
+      ]
+    },
+    {
+      "name": "Opportunité",
+      "item": [
+        { "name": "GET Opportunité créée", "request": { "method": "GET", "url": "{{baseUrl}}/opportunities/{{opportunityId}}" } },
+        {
+          "name": "TC-OPP-02 Échec - Phase invalide",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/opportunities/{{opportunityId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"phase\": \"Phase inexistante\"\n}" }
+          }
+        },
+        { "name": "GET Opportunities", "request": { "method": "GET", "url": "{{baseUrl}}/opportunities" } }
+      ]
+    },
+    {
+      "name": "Devis -> Commande",
+      "item": [
+        {
+          "name": "1. Créer un devis (lié à l'opportunité)",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json();","pm.collectionVariables.set('quoteId', d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/quotes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"opportunityId\": \"{{opportunityId}}\",\n  \"client\": \"Transports Durand SPRL\",\n  \"trajet\": \"Mons -> Charleroi\",\n  \"price\": 850\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-US2-02 Échec - Conversion avant acceptation",
+          "request": { "method": "POST", "url": "{{baseUrl}}/quotes/{{quoteId}}/convert" }
+        },
+        {
+          "name": "2. Marquer accepté (sans preuve)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/quotes/{{quoteId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Accepté par le client\"\n}" }
+          }
+        },
+        {
+          "name": "TC-US2-03 Échec - Conversion sans preuve jointe",
+          "request": { "method": "POST", "url": "{{baseUrl}}/quotes/{{quoteId}}/convert" }
+        },
+        {
+          "name": "3. Joindre la preuve d'accord",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/quotes/{{quoteId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"proofAttached\": true\n}" }
+          }
+        },
+        {
+          "name": "TC-US2-01 Succès - Convertir en commande",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json();","if(d.order) pm.collectionVariables.set('orderId', d.order.id);"] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/quotes/{{quoteId}}/convert" }
+        },
+        { "name": "GET Orders", "request": { "method": "GET", "url": "{{baseUrl}}/orders" } }
+      ]
+    },
+    {
+      "name": "Dossier (Case) & SLA",
+      "item": [
+        {
+          "name": "TC-US3-03 Échec - Sans commande associée",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cases",
+            "body": { "mode": "raw", "raw": "{\n  \"category\": \"Facturation\"\n}" }
+          }
+        },
+        {
+          "name": "TC-US3-01 Succès - Créer réclamation liée à la commande",
+          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json();","pm.collectionVariables.set('caseId', d.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cases",
+            "body": { "mode": "raw", "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"category\": \"Dommage marchandise\"\n}" }
+          }
+        },
+        { "name": "TC-US3-02 Résoudre la réclamation", "request": { "method": "POST", "url": "{{baseUrl}}/cases/{{caseId}}/resolve" } },
+        { "name": "TC-US3-04 Échec - Double résolution", "request": { "method": "POST", "url": "{{baseUrl}}/cases/{{caseId}}/resolve" } },
+        { "name": "GET Cases", "request": { "method": "GET", "url": "{{baseUrl}}/cases" } },
+        { "name": "GET Notifications", "request": { "method": "GET", "url": "{{baseUrl}}/notifications" } }
+      ]
+    },
+    {
+      "name": "Utilitaires",
+      "item": [
+        { "name": "Reset data", "request": { "method": "POST", "url": "{{baseUrl}}/reset" } },
+        { "name": "Health check", "request": { "method": "GET", "url": "{{baseUrl}}/health" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bel Espoir Export SCS - CRM (Mock D365)</title>
+<style>
+  :root {
+    --d365-blue:#106ebe; --d365-blue-dark:#005a9e; --d365-dark:#1b2b4b; --d365-sidebar:#faf9f8; --d365-border:#e1dfdd;
+    --text:#201f1e; --text-light:#605e5c; --green:#107c10; --red:#a4262c; --orange:#c8622a;
+    --bpf-inactive:#e1dfdd;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI', -apple-system, Roboto, sans-serif; color:var(--text); background:#fff; font-size:13px; }
+  #app { display:flex; flex-direction:column; height:100vh; }
+
+  /* Top bar */
+  .topbar { background:var(--d365-dark); color:#fff; padding:0 16px; height:44px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .topbar .brand { display:flex; align-items:center; gap:10px; }
+  .topbar .app-grid { width:16px; height:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; opacity:.9; }
+  .topbar .app-grid span { width:100%; height:100%; background:#fff; border-radius:1px; }
+  .topbar .title { font-size:14px; font-weight:600; }
+  .topbar .env { font-size:11px; opacity:.7; margin-left:8px; }
+  .topbar button { background:transparent; border:1px solid rgba(255,255,255,.35); color:#fff; padding:5px 10px; border-radius:2px; font-size:11px; cursor:pointer; }
+  .topbar button:hover { background:rgba(255,255,255,.12); }
+
+  .body-wrap { display:flex; flex:1; min-height:0; }
+
+  /* Sidebar */
+  .sidebar { width:210px; background:var(--d365-sidebar); border-right:1px solid var(--d365-border); flex-shrink:0; overflow-y:auto; padding-top:6px; }
+  .sidebar .group-label { font-size:11px; color:var(--text-light); text-transform:uppercase; letter-spacing:.02em; padding:14px 14px 4px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:7px 14px; cursor:pointer; font-size:13px; color:var(--text); border-left:3px solid transparent; }
+  .nav-item:hover { background:#f3f2f1; }
+  .nav-item.active { background:#e8f0fb; border-left-color:var(--d365-blue); font-weight:600; color:var(--d365-blue-dark); }
+  .nav-item .ico { width:16px; height:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; }
+
+  /* Vue liste + panneau latéral de détail (list/detail split view) */
+  .split-wrap { display:flex; flex:1; min-height:0; }
+  .list-pane { width:34%; min-width:260px; max-width:420px; border-right:1px solid var(--d365-border); overflow-y:auto; background:#fff; flex-shrink:0; }
+  .detail-pane { flex:1; overflow-y:auto; background:#fff; }
+  .list-pane table.grid td, .list-pane table.grid th { padding:6px 8px; font-size:12px; }
+  table.grid tr.row.selected { background:#e8f0fb; }
+  table.grid tr.row.selected td:first-child { box-shadow:inset 3px 0 0 var(--d365-blue); }
+
+  /* Content */
+  .content { flex:1; overflow-y:auto; padding:0; }
+  .command-bar { display:flex; align-items:center; gap:6px; padding:8px 16px; border-bottom:1px solid var(--d365-border); background:#fff; position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  .command-bar h1 { font-size:15px; margin:0 12px 0 0; font-weight:600; }
+  .btn { border:1px solid #8a8886; background:#fff; padding:5px 12px; border-radius:3px; font-size:12px; cursor:pointer; color:var(--text); }
+  .btn:hover { background:#f3f2f1; }
+  .btn-primary { background:var(--d365-blue); color:#fff; border-color:var(--d365-blue); }
+  .btn-primary:hover { background:#0a5aa0; }
+  .btn-success { background:var(--green); color:#fff; border-color:var(--green); }
+  .btn-danger { color:var(--red); border-color:var(--red); background:#fff; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+
+  .page-pad { padding:16px; }
+
+  /* Grid (list view) */
+  table.grid { width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.grid th { text-align:left; padding:8px 10px; background:#f3f2f1; border-bottom:1px solid var(--d365-border); font-weight:600; color:var(--text-light); position:sticky; top:0; }
+  table.grid td { padding:7px 10px; border-bottom:1px solid var(--d365-border); }
+  table.grid tr.row:hover { background:#f3f9fd; cursor:pointer; }
+  .empty-state { padding:40px; text-align:center; color:var(--text-light); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .pill-blue { background:#e8f0fb; color:var(--d365-blue); }
+  .pill-green { background:#dff6dd; color:var(--green); }
+  .pill-orange { background:#fdf1e5; color:var(--orange); }
+  .pill-red { background:#fde7e9; color:var(--red); }
+  .pill-grey { background:#f3f2f1; color:var(--text-light); }
+
+  /* Form */
+  .form-wrap { padding:16px; max-width:1000px; }
+  .bpf { display:flex; margin-bottom:16px; border-radius:4px; overflow:hidden; }
+  .bpf-stage { flex:1; background:var(--bpf-inactive); color:#605e5c; padding:10px 20px; font-size:12px; font-weight:600; position:relative; clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%, 8% 50%); margin-right:-14px; }
+  .bpf-stage:first-child { clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%); }
+  .bpf-stage.active { background:var(--d365-blue); color:#fff; }
+  .bpf-stage.done { background:#c7e0f4; color:var(--d365-dark); }
+
+  .tabs { display:flex; gap:4px; border-bottom:2px solid var(--d365-border); margin-bottom:16px; }
+  .tab { padding:8px 14px; font-size:13px; cursor:pointer; color:var(--text-light); border-bottom:2px solid transparent; margin-bottom:-2px; }
+  .tab.active { color:var(--d365-blue); border-bottom-color:var(--d365-blue); font-weight:600; }
+
+  .field-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px 24px; }
+  .field { padding:8px 0; border-bottom:1px solid #f3f2f1; }
+  .field label { display:block; font-size:11.5px; color:var(--text-light); margin-bottom:3px; }
+  .field label.required:after { content:" *"; color:var(--red); }
+  .field input, .field select, .field textarea { width:100%; border:1px solid transparent; background:transparent; font-size:13px; padding:2px 0; font-family:inherit; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline:none; border-bottom:1px solid var(--d365-blue); background:#fafafa; }
+  .field.full { grid-column:1 / -1; }
+  .section-title { grid-column:1/-1; font-size:12px; font-weight:700; color:var(--text-light); text-transform:uppercase; margin:14px 0 2px; }
+  .toggle-row { display:flex; align-items:center; gap:8px; padding:6px 0; }
+
+  .alert { padding:10px 14px; border-radius:4px; font-size:12.5px; margin-bottom:12px; }
+  .alert-error { background:#fde7e9; color:var(--red); border:1px solid #f3b3ba; }
+  .alert-success { background:#dff6dd; color:var(--green); border:1px solid #9fd89f; }
+
+  .lookup-hint { font-size:11px; color:var(--text-light); margin-top:2px; }
+
+  /* Feed drawer */
+  .feed-toggle { position:fixed; bottom:16px; right:16px; background:var(--d365-dark); color:#fff; border:none; border-radius:20px; padding:10px 16px; font-size:12px; cursor:pointer; z-index:20; box-shadow:0 2px 8px rgba(0,0,0,.2); }
+  .feed-drawer { position:fixed; right:0; top:0; bottom:0; width:340px; background:#fff; border-left:1px solid var(--d365-border); box-shadow:-2px 0 8px rgba(0,0,0,.1); transform:translateX(100%); transition:transform .2s; z-index:30; display:flex; flex-direction:column; }
+  .feed-drawer.open { transform:translateX(0); }
+  .feed-header { padding:12px 16px; border-bottom:1px solid var(--d365-border); display:flex; justify-content:space-between; align-items:center; font-weight:600; }
+  .feed-list { flex:1; overflow-y:auto; padding:8px 16px; }
+  .feed-item { border-bottom:1px solid #f3f2f1; padding:8px 0; font-size:12px; }
+  .feed-item .subj { font-weight:600; }
+  .feed-item .meta { color:var(--text-light); font-size:11px; }
+
+  @media (max-width:700px) {
+    .sidebar { width:56px; }
+    .sidebar .nav-item span.label, .sidebar .group-label { display:none; }
+    .field-grid { grid-template-columns:1fr; }
+    .feed-drawer { width:100%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="app-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <span class="title">Bel Espoir Export SCS</span>
+      <span class="env">Sandbox (mock) · orgc6245b31.crm4.dynamics.com</span>
+    </div>
+    <button onclick="resetAll()">↺ Réinitialiser les données</button>
+  </div>
+  <div class="body-wrap">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<button class="feed-toggle" onclick="toggleFeed()">📬 Notifications</button>
+<div class="feed-drawer" id="feedDrawer">
+  <div class="feed-header"><span>Notifications &amp; tâches</span><span style="cursor:pointer" onclick="toggleFeed()">✕</span></div>
+  <div class="feed-list" id="feedList"></div>
+</div>
+
+<script>
+const API = "/api";
+let route = { entity: "dashboard", id: null, tab: 0 };
+
+const NAV = [
+  { group: "", items: [{ key: "dashboard", label: "Accueil", icon: "🏠" }] },
+  { group: "Vente", items: [
+      { key: "leads", label: "Prospects", icon: "👤" },
+      { key: "opportunities", label: "Opportunités", icon: "💰" },
+      { key: "accounts", label: "Comptes", icon: "🏢" },
+  ]},
+  { group: "Transport", items: [
+      { key: "quotes", label: "Devis", icon: "📄" },
+      { key: "orders", label: "Commandes", icon: "🚚" },
+  ]},
+  { group: "Service client", items: [
+      { key: "cases", label: "Dossiers", icon: "🎫" },
+  ]},
+];
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+function fmtDate(iso) { if (!iso) return "—"; const d = new Date(iso); return d.toLocaleDateString('fr-BE') + " " + d.toLocaleTimeString('fr-BE', {hour:'2-digit', minute:'2-digit'}); }
+function money(n) { return n === null || n === undefined ? "—" : Number(n).toLocaleString('fr-BE') + " €"; }
+
+function renderSidebar() {
+  const el = document.getElementById("sidebar");
+  el.innerHTML = NAV.map(g => `
+    ${g.group ? `<div class="group-label">${g.group}</div>` : ""}
+    ${g.items.map(i => `<div class="nav-item ${route.entity===i.key?'active':''}" onclick="goTo('${i.key}')"><span class="ico">${i.icon||"•"}</span><span class="label">${i.label}</span></div>`).join("")}
+  `).join("");
+}
+
+function goTo(entity, id=null) {
+  route = { entity, id, tab: 0 };
+  render();
+}
+window.goTo = goTo;
+
+async function render() {
+  renderSidebar();
+  const c = document.getElementById("content");
+  c.innerHTML = `<div class="empty-state">Chargement…</div>`;
+  if (route.entity === "dashboard") return renderDashboard();
+  if (route.id === "new") return renderForm(route.entity, null, "content");
+  if (route.id) return renderSplitView(route.entity, route.id);
+  return renderGrid(route.entity);
+}
+
+// Vue liste (gauche) + panneau de détail (droite), à la manière du volet de
+// lecture D365 : la grille reste visible pendant la consultation d'une fiche.
+async function renderSplitView(entity, id) {
+  const cfg = GRID_CONFIG[entity];
+  const c = document.getElementById("content");
+  c.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%;min-height:0;">
+      <div class="command-bar">
+        <h1>${cfg.title}</h1>
+        ${cfg.newLabel ? `<button class="btn btn-primary" onclick="goTo('${entity}','new')">${cfg.newLabel}</button>` : ""}
+        <button class="btn" onclick="goTo('${entity}')">☰ Vue liste complète</button>
+      </div>
+      <div class="split-wrap">
+        <div class="list-pane" id="listPane"><div class="empty-state">Chargement…</div></div>
+        <div class="detail-pane" id="detailPane"><div class="empty-state">Chargement…</div></div>
+      </div>
+    </div>`;
+  renderListPane(entity, id);
+  renderForm(entity, id, "detailPane");
+}
+
+async function renderListPane(entity, selectedId) {
+  const cfg = GRID_CONFIG[entity];
+  const { data } = await api("GET", "/" + entity);
+  if (entity === "opportunities" || accountsCache.length === 0) {
+    accountsCache = (await api("GET", "/accounts")).data;
+  }
+  const el = document.getElementById("listPane");
+  if (el) el.innerHTML = gridTableHTML(entity, cfg, data, selectedId);
+}
+
+// ---------------------------------------------------------------------------
+// DASHBOARD
+// ---------------------------------------------------------------------------
+async function renderDashboard() {
+  const [leads, accounts, opps, quotes, orders, cases] = await Promise.all(
+    ["leads","accounts","opportunities","quotes","orders","cases"].map(e => api("GET", "/" + e))
+  );
+  const c = document.getElementById("content");
+  const stat = (label, val, key) => `<div class="btn" style="text-align:center;padding:16px;cursor:pointer;flex:1" onclick="goTo('${key}')">
+    <div style="font-size:24px;font-weight:700;color:var(--d365-blue)">${val}</div><div style="color:var(--text-light);margin-top:4px">${label}</div></div>`;
+  c.innerHTML = `
+    <div class="command-bar"><h1>Accueil — Bel Espoir Export SCS</h1></div>
+    <div class="page-pad">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        ${stat("Prospects", leads.data.length, "leads")}
+        ${stat("Comptes", accounts.data.length, "accounts")}
+        ${stat("Opportunités", opps.data.length, "opportunities")}
+        ${stat("Devis", quotes.data.length, "quotes")}
+        ${stat("Commandes", orders.data.length, "orders")}
+        ${stat("Dossiers", cases.data.length, "cases")}
+      </div>
+      <p style="color:var(--text-light)">Mock de test reproduisant la structure de l'instance Dynamics 365 (Compte, Prospect avec Business Process Flow, Opportunité, Devis → Commande, Dossier avec SLA). Toutes les données sont en mémoire et se réinitialisent au redémarrage du serveur.</p>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// GRIDS (list views)
+// ---------------------------------------------------------------------------
+const GRID_CONFIG = {
+  leads: {
+    title: "Prospects actifs", newLabel: "+ Nouveau prospect",
+    cols: ["Rubrique","Nom","Société","Téléphone","E-mail","Statut","Propriétaire"],
+    row: l => [l.topic, `${l.firstName||""} ${l.lastName}`.trim(), l.company, l.businessPhone||l.mobilePhone||"—", l.email||"—",
+      pill(l.status, l.status==="Qualifié"?"green":"blue"), l.owner],
+  },
+  accounts: {
+    title: "Comptes actifs", newLabel: "+ Nouveau compte",
+    cols: ["Nom du compte","Téléphone","Site Web","Secteur","Contact principal"],
+    row: a => [a.name, a.phone||"—", a.website||"—", a.sector||"—", a.primaryContactName||"—"],
+  },
+  opportunities: {
+    title: "Mes opportunités ouvertes", newLabel: "+ Nouvelle opportunité",
+    cols: ["Rubrique","Compte","Montant estimé","Phase","Statut","Clôture est."],
+    row: o => { const acc = accountsCache.find(a=>a.id===o.accountId); return [o.topic, acc?acc.name:o.accountId, money(o.estimatedAmount), pill(o.phase,"blue"), pill(o.status, o.status==="Gagnée"?"green":o.status==="Perdue"?"red":"grey"), fmtDate(o.estimatedCloseDate).split(" ")[0]]; },
+  },
+  quotes: {
+    title: "Devis", newLabel: "+ Nouveau devis",
+    cols: ["N°","Client","Trajet","Prix","Statut","Preuve jointe","Expiration"],
+    row: q => [q.id, q.client, q.trajet, money(q.price), pill(q.status, q.status==="Accepté par le client"?"green":q.status==="Expiré"?"red":"blue"), q.proofAttached?"✅":"❌", fmtDate(q.expiresAt).split(" ")[0]],
+  },
+  orders: {
+    title: "Commandes", newLabel: null,
+    cols: ["N°","Client","Trajet","Prix","Statut","Créée le"],
+    row: o => [o.id, o.client, o.trajet, money(o.price), pill(o.status,"green"), fmtDate(o.createdAt)],
+  },
+  cases: {
+    title: "Dossiers actifs", newLabel: "+ Nouveau dossier",
+    cols: ["N°","Client","Catégorie","SLA","Statut","Échéance"],
+    row: c => [c.id, c.client, c.category, c.slaHours+"h", pill(c.status, c.status==="Résolu"?"green":c.status.includes("dépassé")?"red":"orange"), fmtDate(c.dueAt)],
+  },
+};
+function pill(text, color) { return `<span class="pill pill-${color}">${text}</span>`; }
+
+let accountsCache = [];
+
+function gridTableHTML(entity, cfg, data, selectedId) {
+  if (data.length === 0) {
+    return `<div class="empty-state">Aucun enregistrement. ${cfg.newLabel ? "Cliquez sur '"+cfg.newLabel+"' pour en créer un." : ""}</div>`;
+  }
+  return `<table class="grid">
+    <thead><tr>${cfg.cols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+    <tbody>
+      ${data.map(row => `<tr class="row ${row.id===selectedId?'selected':''}" onclick="goTo('${entity}','${row.id}')">${cfg.row(row).map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+async function renderGrid(entity) {
+  const cfg = GRID_CONFIG[entity];
+  const { data } = await api("GET", "/" + entity);
+  if (entity === "opportunities" || accountsCache.length === 0) {
+    accountsCache = (await api("GET", "/accounts")).data;
+  }
+  const c = document.getElementById("content");
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${cfg.title}</h1>
+      ${cfg.newLabel ? `<button class="btn btn-primary" onclick="goTo('${entity}','new')">${cfg.newLabel}</button>` : ""}
+      <button class="btn" onclick="render()">↻ Actualiser</button>
+    </div>
+    <div class="page-pad">${gridTableHTML(entity, cfg, data, null)}</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// FORMS
+// ---------------------------------------------------------------------------
+async function renderForm(entity, id, targetId = "content") {
+  accountsCache = (await api("GET", "/accounts")).data;
+  if (entity === "leads") return renderLeadForm(id, targetId);
+  if (entity === "accounts") return renderAccountForm(id, targetId);
+  if (entity === "opportunities") return renderOpportunityForm(id, targetId);
+  if (entity === "quotes") return renderQuoteForm(id, targetId);
+  if (entity === "cases") return renderCaseForm(id, targetId);
+  if (entity === "orders") return renderOrderForm(id, targetId);
+}
+
+function fieldsHTML(fields) {
+  return `<div class="field-grid">${fields.map(f => {
+    if (f.section) return `<div class="section-title">${f.section}</div>`;
+    if (f.full && f.type === "textarea") return `<div class="field full"><label>${f.label}</label><textarea id="${f.id}" rows="3">${f.value||""}</textarea></div>`;
+    if (f.type === "select") return `<div class="field"><label class="${f.required?'required':''}">${f.label}</label><select id="${f.id}">${f.options.map(o=>`<option ${o===f.value?"selected":""}>${o}</option>`).join("")}</select></div>`;
+    if (f.type === "toggle") return `<div class="field"><div class="toggle-row"><input type="checkbox" id="${f.id}" ${f.value?"checked":""}/> <label style="margin:0">${f.label}</label></div></div>`;
+    if (f.readonly) return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><input value="${f.value||"—"}" disabled/></div>`;
+    return `<div class="field ${f.full?'full':''}"><label class="${f.required?'required':''}">${f.label}</label><input id="${f.id}" type="${f.type||'text'}" value="${f.value||""}"/></div>`;
+  }).join("")}</div>`;
+}
+function getVal(id) { const el = document.getElementById(id); if (!el) return undefined; return el.type === "checkbox" ? el.checked : el.value; }
+
+// ----- LEAD FORM (with Business Process Flow) -----
+async function renderLeadForm(id, targetId = "content") {
+  let lead = null;
+  if (id) { const r = await api("GET", "/leads/" + id); lead = r.data; }
+  const stages = ["Qualifier", "Développer"];
+  const currentStage = lead ? lead.bpfStage : "Qualifier";
+
+  const c = document.getElementById(targetId);
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${lead ? (lead.firstName? lead.firstName+" ":"")+lead.lastName : "Nouveau prospect"}</h1>
+      ${targetId === "content" ? `<button class="btn" onclick="goTo('leads')">← Retour à la liste</button>` : ""}
+      ${!lead ? `<button class="btn btn-primary" onclick="saveLead()">💾 Enregistrer</button>` : ""}
+      ${lead && !lead.qualified ? `<button class="btn btn-success" onclick="qualifyLead('${lead.id}')">✓ Qualifier</button>` : ""}
+      ${lead && lead.qualified ? `<span class="pill pill-green" style="align-self:center">Qualifié</span>` : ""}
+    </div>
+    <div class="form-wrap">
+      <div id="formAlert"></div>
+      ${lead ? `<div class="bpf">${stages.map((s,i) => `<div class="bpf-stage ${s===currentStage?'active':(i < stages.indexOf(currentStage) ? 'done':'')}">${i+1}. ${s}</div>`).join("")}</div>` : ""}
+      <div class="tabs"><div class="tab active">Résumé</div></div>
+      ${fieldsHTML([
+        { section: "Informations générales" },
+        { id:"f_topic", label:"Rubrique", required:true, value: lead?.topic, full:true },
+        { id:"f_firstName", label:"Prénom", value: lead?.firstName },
+        { id:"f_lastName", label:"Nom", required:true, value: lead?.lastName },
+        { id:"f_jobTitle", label:"Fonction", value: lead?.jobTitle },
+        { id:"f_company", label:"Société", required:true, value: lead?.company },
+        { id:"f_website", label:"Site Web", value: lead?.website },
+        { id:"f_vatNumber", label:"N° de TVA", value: lead?.vatNumber },
+        { section: "Coordonnées" },
+        { id:"f_businessPhone", label:"Téléphone professionnel", value: lead?.businessPhone },
+        { id:"f_mobilePhone", label:"Téléphone mobile", value: lead?.mobilePhone },
+        { id:"f_email", label:"E-mail", value: lead?.email },
+        { section: "Adresse" },
+        { id:"f_street1", label:"Rue 1", value: lead?.address?.street1 },
+        { id:"f_street2", label:"Rue 2", value: lead?.address?.street2 },
+        { id:"f_street3", label:"Rue 3", value: lead?.address?.street3 },
+        { id:"f_city", label:"Ville", value: lead?.address?.city },
+        { id:"f_stateProvince", label:"Département/Province", value: lead?.address?.stateProvince },
+        { id:"f_postalCode", label:"Code postal", value: lead?.address?.postalCode },
+        { id:"f_country", label:"Pays/Région", value: lead?.address?.country || "Belgique" },
+        { section: "En-tête" },
+        lead ? { label:"Source du prospect", readonly:true, value: lead.leadSource } : { id:"f_leadSource", label:"Source du prospect", type:"select", options:["Site Web","Recommandation","Salon professionnel","Appel entrant","Autre"], value:"Site Web" },
+        lead ? { label:"Classement", readonly:true, value: lead.rating } : { id:"f_rating", label:"Classement", type:"select", options:["Chaud","Tiède","Froid"], value:"Chaud" },
+        lead ? { label:"Statut", readonly:true, value: lead.status } : null,
+        lead ? { label:"Propriétaire", readonly:true, value: lead.owner } : null,
+      ].filter(Boolean))}
+    </div>`;
+}
+
+async function saveLead() {
+  const body = {
+    topic: getVal("f_topic"), firstName: getVal("f_firstName"), lastName: getVal("f_lastName"),
+    jobTitle: getVal("f_jobTitle"), company: getVal("f_company"), website: getVal("f_website"),
+    vatNumber: getVal("f_vatNumber"),
+    businessPhone: getVal("f_businessPhone"), mobilePhone: getVal("f_mobilePhone"), email: getVal("f_email"),
+    street1: getVal("f_street1"), street2: getVal("f_street2"), street3: getVal("f_street3"),
+    city: getVal("f_city"), stateProvince: getVal("f_stateProvince"), postalCode: getVal("f_postalCode"), country: getVal("f_country"),
+    leadSource: getVal("f_leadSource"), rating: getVal("f_rating"),
+  };
+  const r = await api("POST", "/leads", body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("leads", r.data.lead.id);
+}
+async function qualifyLead(id) {
+  const r = await api("POST", `/leads/${id}/qualify`);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("opportunities", r.data.opportunity.id);
+}
+function showAlert(msg, type) {
+  const el = document.getElementById("formAlert");
+  if (el) el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+// ----- ACCOUNT FORM (2 tabs) -----
+async function renderAccountForm(id, targetId = "content") {
+  let account = null;
+  if (id) { const r = await api("GET", "/accounts/" + id); account = r.data; }
+  const tab = route.tab || 0;
+  const c = document.getElementById(targetId);
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${account ? account.name : "Nouveau compte"}</h1>
+      ${targetId === "content" ? `<button class="btn" onclick="goTo('accounts')">← Retour à la liste</button>` : ""}
+      ${!account ? `<button class="btn btn-primary" onclick="saveAccount()">💾 Enregistrer</button>` : ""}
+    </div>
+    <div class="form-wrap">
+      <div id="formAlert"></div>
+      <div class="tabs">
+        <div class="tab ${tab===0?'active':''}" onclick="route.tab=0;renderForm('accounts','${id||''}','${targetId}')">Résumé</div>
+        <div class="tab ${tab===1?'active':''}" onclick="route.tab=1;renderForm('accounts','${id||''}','${targetId}')">Profil de la société</div>
+      </div>
+      ${tab === 0 ? fieldsHTML([
+        { id:"f_name", label:"Nom du compte", required:true, value: account?.name, full:true },
+        { id:"f_phone", label:"Téléphone", value: account?.phone },
+        { id:"f_fax", label:"Télécopie", value: account?.fax },
+        { id:"f_website", label:"Site Web", value: account?.website },
+        { id:"f_vatNumber", label:"N° de TVA", value: account?.vatNumber },
+        { label:"Contact principal", readonly:true, value: account?.primaryContactName },
+      ]) : fieldsHTML([
+        { section: "Profil de la société" },
+        { id:"f_sector", label:"Secteur", type:"select", options:["Transport routier","Logistique","Déménagement","Commerce","Autre"], value: account?.sector||"Transport routier" },
+        { id:"f_naceCode", label:"Code NACE", value: account?.naceCode },
+        { id:"f_ownership", label:"Propriété", type:"select", options:["Publique","Privée","Filiale","Indépendante"], value: account?.ownership||"Privée" },
+        { id:"f_annualRevenue", label:"Revenu annuel", type:"number", value: account?.annualRevenue },
+        { id:"f_numberOfEmployees", label:"Nombre d'employés", type:"number", value: account?.numberOfEmployees },
+        { section: "Notes sur la société" },
+        { id:"f_description", label:"Description", type:"textarea", full:true, value: account?.description },
+        { section: "Marketing" },
+        { label:"Prospect d'origine", readonly:true, full:true, value: account?.originatingLeadId },
+        { section: "Préférences de contact" },
+        { id:"f_preferredCommunication", label:"Mode de communication", type:"select", options:["E-mail","Téléphone","Courrier"], value: account?.preferredCommunication||"E-mail" },
+        { id:"f_allowEmail", label:"Autoriser E-mail", type:"toggle", value: account?.allowEmail ?? true },
+        { id:"f_allowBulkMail", label:"Autoriser l'envoi en nombre", type:"toggle", value: account?.allowBulkMail ?? true },
+        { id:"f_allowPhone", label:"Autoriser Téléphone", type:"toggle", value: account?.allowPhone ?? true },
+      ])}
+    </div>`;
+}
+async function saveAccount() {
+  const body = { name:getVal("f_name"), phone:getVal("f_phone"), fax:getVal("f_fax"), website:getVal("f_website"), vatNumber:getVal("f_vatNumber") };
+  const r = await api("POST", "/accounts", body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("accounts", r.data.id);
+}
+
+// ----- OPPORTUNITY FORM -----
+async function renderOpportunityForm(id, targetId = "content") {
+  let opp = null;
+  if (id) { const r = await api("GET", "/opportunities/" + id); opp = r.data; }
+  const phases = ["Qualification","Développement","Proposition","Clôture"];
+  const currentPhase = opp ? opp.phase : "Qualification";
+  const c = document.getElementById(targetId);
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${opp ? opp.topic : "Nouvelle opportunité"}</h1>
+      ${targetId === "content" ? `<button class="btn" onclick="goTo('opportunities')">← Retour à la liste</button>` : ""}
+      ${!opp ? `<button class="btn btn-primary" onclick="saveOpportunity()">💾 Enregistrer</button>` : ""}
+      ${opp && opp.status==="Ouverte" ? `<button class="btn btn-success" onclick="advanceOpportunity('${opp.id}')">Phase suivante ▶</button>` : ""}
+    </div>
+    <div class="form-wrap">
+      <div id="formAlert"></div>
+      ${opp ? `<div class="bpf">${phases.map((s,i) => `<div class="bpf-stage ${s===currentPhase?'active':(i < phases.indexOf(currentPhase) ? 'done':'')}">${i+1}. ${s}</div>`).join("")}</div>` : ""}
+      ${fieldsHTML([
+        opp ? { label:"Compte", readonly:true, full:true, value: accountsCache.find(a=>a.id===opp.accountId)?.name || opp.accountId } :
+              { id:"f_accountId", label:"Compte", type:"select", required:true, options: accountsCache.map(a=>a.id+" — "+a.name), full:true },
+        { id:"f_topic", label:"Rubrique", required:true, value: opp?.topic, full:true },
+        { id:"f_contactName", label:"Contact", value: opp?.contactName },
+        { id:"f_estimatedAmount", label:"Montant estimé (EUR)", type:"number", value: opp?.estimatedAmount },
+        opp ? { label:"Statut", readonly:true, value: opp.status } : null,
+        opp ? { label:"Date de clôture estimée", readonly:true, value: fmtDate(opp.estimatedCloseDate).split(" ")[0] } : null,
+      ].filter(Boolean))}
+    </div>`;
+}
+async function saveOpportunity() {
+  const accVal = getVal("f_accountId") || "";
+  const accountId = accVal.split(" — ")[0];
+  const body = { accountId, topic: getVal("f_topic"), contactName: getVal("f_contactName"), estimatedAmount: getVal("f_estimatedAmount") ? Number(getVal("f_estimatedAmount")) : null };
+  const r = await api("POST", "/opportunities", body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("opportunities", r.data.id);
+}
+async function advanceOpportunity(id) {
+  const phases = ["Qualification","Développement","Proposition","Clôture"];
+  const r0 = await api("GET", "/opportunities/" + id);
+  const idx = phases.indexOf(r0.data.phase);
+  if (idx >= phases.length - 1) return;
+  const r = await api("PATCH", "/opportunities/" + id, { phase: phases[idx+1] });
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  renderForm("opportunities", id, "detailPane");
+}
+
+// ----- QUOTE FORM -----
+async function renderQuoteForm(id, targetId = "content") {
+  let quote = null, opportunities = (await api("GET","/opportunities")).data;
+  if (id) { const r = await api("GET", "/quotes"); quote = r.data.find(q=>q.id===id); }
+  const c = document.getElementById(targetId);
+  const canConvert = quote && quote.status === "Accepté par le client" && quote.proofAttached;
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${quote ? quote.id : "Nouveau devis"}</h1>
+      ${targetId === "content" ? `<button class="btn" onclick="goTo('quotes')">← Retour à la liste</button>` : ""}
+      ${!quote ? `<button class="btn btn-primary" onclick="saveQuote()">💾 Enregistrer</button>` : ""}
+      ${quote && quote.status!=="Accepté par le client" ? `<button class="btn" onclick="patchQuote('${quote.id}',{status:'Accepté par le client'})">Marquer accepté par le client</button>` : ""}
+      ${quote && !quote.proofAttached ? `<button class="btn" onclick="patchQuote('${quote.id}',{proofAttached:true})">📎 Joindre la preuve d'accord</button>` : ""}
+      ${quote ? `<button class="btn btn-success" ${canConvert?"":"disabled"} onclick="convertQuote('${quote.id}')">Convertir en commande</button>` : ""}
+    </div>
+    <div class="form-wrap">
+      <div id="formAlert"></div>
+      ${quote && !canConvert ? `<div class="alert alert-error">Conversion bloquée : le devis doit être <b>Accepté par le client</b> ET avoir une <b>preuve d'accord jointe</b> (bon de commande signé).</div>` : ""}
+      ${fieldsHTML([
+        quote ? { label:"Opportunité", readonly:true, full:true, value: quote.opportunityId } :
+                { id:"f_opportunityId", label:"Opportunité", type:"select", required:true, options: opportunities.map(o=>o.id+" — "+o.topic), full:true },
+        { id:"f_client", label:"Client", required:true, value: quote?.client },
+        { id:"f_trajet", label:"Trajet", required:true, value: quote?.trajet },
+        { id:"f_price", label:"Prix (EUR)", type:"number", required:true, value: quote?.price },
+        { id:"f_cargoType", label:"Type de marchandise", value: quote?.cargoType },
+        quote ? { label:"Statut", readonly:true, value: quote.status } : null,
+        quote ? { label:"Preuve d'accord jointe", readonly:true, value: quote.proofAttached ? "Oui" : "Non" } : null,
+        quote ? { label:"Date d'expiration", readonly:true, value: fmtDate(quote.expiresAt).split(" ")[0] } : null,
+      ].filter(Boolean))}
+    </div>`;
+}
+async function saveQuote() {
+  const oppVal = getVal("f_opportunityId") || "";
+  const opportunityId = oppVal.split(" — ")[0];
+  const body = { opportunityId, client:getVal("f_client"), trajet:getVal("f_trajet"), price:Number(getVal("f_price")), cargoType:getVal("f_cargoType") };
+  const r = await api("POST", "/quotes", body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("quotes", r.data.id);
+}
+async function patchQuote(id, body) {
+  const r = await api("PATCH", "/quotes/" + id, body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  renderForm("quotes", id, "detailPane");
+}
+async function convertQuote(id) {
+  const r = await api("POST", `/quotes/${id}/convert`);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("orders", r.data.order.id);
+}
+
+// ----- ORDER FORM (read-only) -----
+async function renderOrderForm(id, targetId = "content") {
+  const { data } = await api("GET", "/orders");
+  const order = data.find(o=>o.id===id);
+  const c = document.getElementById(targetId);
+  c.innerHTML = `
+    <div class="command-bar"><h1>${order.id}</h1>${targetId === "content" ? `<button class="btn" onclick="goTo('orders')">← Retour à la liste</button>` : ""}</div>
+    <div class="form-wrap">
+      ${fieldsHTML([
+        { label:"Client", readonly:true, value: order.client },
+        { label:"Trajet", readonly:true, value: order.trajet },
+        { label:"Prix", readonly:true, value: money(order.price) },
+        { label:"Type de marchandise", readonly:true, value: order.cargoType },
+        { label:"Statut", readonly:true, value: order.status },
+        { label:"Devis d'origine", readonly:true, value: order.quoteId },
+        { label:"Créée le", readonly:true, value: fmtDate(order.createdAt) },
+      ])}
+    </div>`;
+}
+
+// ----- CASE FORM -----
+async function renderCaseForm(id, targetId = "content") {
+  let c_ = null, orders = (await api("GET","/orders")).data;
+  if (id) { const r = await api("GET", "/cases"); c_ = r.data.find(x=>x.id===id); }
+  const c = document.getElementById(targetId);
+  c.innerHTML = `
+    <div class="command-bar">
+      <h1>${c_ ? c_.id : "Nouveau dossier"}</h1>
+      ${targetId === "content" ? `<button class="btn" onclick="goTo('cases')">← Retour à la liste</button>` : ""}
+      ${!c_ ? `<button class="btn btn-primary" onclick="saveCase()">💾 Enregistrer</button>` : ""}
+      ${c_ && c_.status!=="Résolu" && !c_.status.includes("dépassé") && !c_.status.includes("Escaladé") ? `<button class="btn btn-success" onclick="resolveCase('${c_.id}')">✓ Résoudre le dossier</button>` : ""}
+      ${c_ && (c_.status.includes("dépassé") || c_.status.includes("Escaladé")) && c_.status!=="Résolu" ? `<button class="btn btn-danger" onclick="resolveCase('${c_.id}')">✓ Résoudre (SLA dépassé)</button>` : ""}
+      ${c_ && !c_.status.startsWith("Résolu") ? `<button class="btn" onclick="checkSlaCase('${c_.id}')">↻ Vérifier le SLA</button>` : ""}
+    </div>
+    <div class="form-wrap">
+      <div id="formAlert"></div>
+      ${fieldsHTML([
+        c_ ? { label:"Commande liée", readonly:true, value: c_.orderId } :
+             { id:"f_orderId", label:"Commande liée", type:"select", required:true, options: orders.map(o=>o.id), full:true },
+        { id:"f_category", label:"Catégorie", type:"select", required:true, options:["Dommage marchandise","Retard","Facturation","Autre"], value: c_?.category },
+        c_ ? { label:"Client", readonly:true, value: c_.client } : null,
+        c_ ? { label:"SLA", readonly:true, value: c_.slaHours + "h" } : null,
+        c_ ? { label:"Statut", readonly:true, value: c_.status } : null,
+        c_ ? { label:"Niveau d'escalade", readonly:true, value: c_.escalationLevel===2?"2 — Direction":c_.escalationLevel===1?"1 — Service client":"0 — Aucune" } : null,
+        c_ ? { label:"Échéance SLA", readonly:true, value: fmtDate(c_.dueAt) } : null,
+        c_ ? { label:"Résolu le", readonly:true, value: c_.resolvedAt ? fmtDate(c_.resolvedAt) : "—" } : null,
+      ].filter(Boolean))}
+    </div>`;
+}
+async function checkSlaCase(id) {
+  await api("POST", `/cases/${id}/check-sla`);
+  renderForm("cases", id, "detailPane");
+}
+async function saveCase() {
+  const body = { orderId:getVal("f_orderId"), category:getVal("f_category") };
+  const r = await api("POST", "/cases", body);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  goTo("cases", r.data.id);
+}
+async function resolveCase(id) {
+  const r = await api("POST", `/cases/${id}/resolve`);
+  if (!r.ok) return showAlert(r.data.message || JSON.stringify(r.data), "error");
+  renderForm("cases", id, "detailPane");
+}
+
+// ---------------------------------------------------------------------------
+// Notifications feed drawer
+// ---------------------------------------------------------------------------
+let feedOpen = false;
+function toggleFeed() { feedOpen = !feedOpen; document.getElementById("feedDrawer").classList.toggle("open", feedOpen); if (feedOpen) refreshFeed(); }
+async function refreshFeed() {
+  const notifs = (await api("GET", "/notifications")).data;
+  const tasks = (await api("GET", "/tasks")).data;
+  const items = [
+    ...notifs.map(n => ({ ...n, kind: "📧 " + n.channel, sortAt: n.sentAt })),
+    ...tasks.map(t => ({ subject: t.title, body: "Assigné à " + t.assignedTo, kind: "✅ tâche", sortAt: t.createdAt })),
+  ].sort((a,b) => new Date(b.sortAt) - new Date(a.sortAt));
+  document.getElementById("feedList").innerHTML = items.length ? items.map(i => `
+    <div class="feed-item"><div class="subj">${i.kind} — ${i.subject}</div><div>${i.body||""}</div><div class="meta">${fmtDate(i.sortAt)}</div></div>
+  `).join("") : `<div class="empty-state">Aucune notification</div>`;
+}
+
+async function resetAll() {
+  await api("POST", "/reset");
+  goTo("dashboard");
+  refreshFeed();
+}
+
+render();
+</script>
+</body>
+</html>
